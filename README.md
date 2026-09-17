@@ -24,20 +24,5 @@ Se você quiser clonar e rodar na sua máquina:
    - Clique em **Carregar sem compactação**
    - Selecione a pasta `build/chrome-mv3-dev` que acabou de ser criada.
 
-> **Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar.
+**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar.
 
-## Como gerar a versão final (ZIP)
-
-Se precisar gerar o arquivo final pra subir na Chrome Web Store, é só rodar:
-
-```bash
-npm run package
-```
-Isso vai criar um arquivo ZIP (tipo `build/chrome-mv3-prod.zip`) prontinho pra fazer upload na loja do Chrome.
-
-## O que tem por baixo do capô?
-
-- **Plasmo Framework** (ajuda muito a criar extensões)
-- **React + TypeScript**
-- **TailwindCSS + Ant Design** pro visual
-- **API da Groq** pra inferência rápida de IA
