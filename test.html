@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratório de Testes: Corretor IA</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #141414;
+            color: #d9d9d9;
+            padding: 2.5rem 1.5rem;
+            max-width: 860px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: #ffffff;
+            margin-bottom: 0.5rem;
+            font-size: 1.6rem;
+        }
+        p.desc {
+            color: #8c8c8c;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        .banner {
+            background-color: #111d2c;
+            border: 1px solid #113560;
+            color: #91caff;
+            padding: 1.1rem 1.25rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+            font-size: 0.88rem;
+            line-height: 1.6;
+        }
+        .banner strong {
+            color: #69b1ff;
+        }
+        .field-group {
+            background: #1f1f1f;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            margin-bottom: 1.5rem;
+            border: 1px solid #303030;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #ffffff;
+            font-size: 0.95rem;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: #141414;
+            color: #ffffff;
+            border: 1px solid #303030;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            box-sizing: border-box;
+            line-height: 1.5;
+        }
+        input:focus, textarea:focus, .content-editable:focus {
+            outline: none;
+            border-color: #1677ff;
+            box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.25);
+        }
+        .content-editable {
+            width: 100%;
+            min-height: 100px;
+            padding: 0.75rem 1rem;
+            background-color: #141414;
+            color: #ffffff;
+            border: 1px solid #303030;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
+            line-height: 1.6;
+        }
+        .hint {
+            font-size: 0.82rem;
+            color: #8c8c8c;
+            margin-top: 0.6rem;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Laboratório de Testes do Corretor IA</h1>
+    <p class="desc">Selecione qualquer frase ou palavra com erros nos campos abaixo para ver o botão oficial do Ant Design aparecer.</p>
+
+    <div class="banner">
+        💡 <strong>Dica de Permissão do Chrome:</strong><br>
+        Se você abriu este arquivo diretamente do seu computador (endereço iniciado em <code>file:///</code>), acesse <strong>chrome://extensions</strong> ➔ clique em <strong>Detalhes</strong> da extensão ➔ marque <strong>"Permitir acesso a URLs de arquivo"</strong>.<br>
+        <em>Ou simplesmente clique em <strong>"Página de Teste"</strong> dentro do popup da extensão para testar de imediato sem permissões adicionais!</em>
+    </div>
+
+    <div class="field-group">
+        <label for="campo-simples">1. Campo de Entrada Simples (Input HTML)</label>
+        <input type="text" id="campo-simples" value="Eu vai para a padaria comprar pao amanhã de tarde.">
+        <div class="hint">Selecione o texto inteiro neste campo. O botão flutuante aparecerá para corrigir e substituir.</div>
+    </div>
+
+    <div class="field-group">
+        <label for="area-texto">2. Área de Texto Longo (Textarea)</label>
+        <textarea id="area-texto" rows="4">Ontem nois fumo no cinema mas o filme tavam muito chato. Agente resolvemos ir enbora antes de acaba porque nois tinha que acordar sedo no outro dia.</textarea>
+        <div class="hint">Selecione frases específicas ou o parágrafo inteiro para correção seletiva.</div>
+    </div>
+
+    <div class="field-group">
+        <label>3. Editor Rico (Div ContentEditable)</label>
+        <div class="content-editable" contenteditable="true">
+            <p>Este é um teste de editor de texto rico tipo <b>Notion</b> ou <b>Google Docs</b>.</p>
+            <p>Selecione <b>esta frase com bastante erroz</b> e teste a funcionalidade de correção.</p>
+        </div>
+        <div class="hint">Simula editores modernos e redes sociais.</div>
+    </div>
+
+    <div class="field-group">
+        <label>4. Texto Estático Comum (Apenas leitura)</label>
+        <p style="margin: 0; line-height: 1.6; color: #8c8c8c;">
+            "A internet mudou a forma como as pessoas se comunica hoje em dia. Muita gente comete erros por causa da pressa ou digitação rápida nos aparelhos móvel, mas com um bom assistente de escrita é posivel corrigir qualquer frase antes de publicar."
+        </p>
+        <div class="hint">Neste caso de texto estático, você pode selecionar e copiar o texto corrigido gerado pela IA.</div>
+    </div>
+
+</body>
+</html>

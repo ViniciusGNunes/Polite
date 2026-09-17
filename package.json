@@ -1,0 +1,55 @@
+{
+  "name": "corretor-ia-groq",
+  "version": "1.0.0",
+  "description": "Corretor gramatical com IA da Groq",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "displayName": "Polite",
+  "manifest": {
+    "name": "Polite",
+    "action": {
+      "default_title": "Abrir Polite"
+    },
+    "host_permissions": [
+      "https://api.groq.com/*"
+    ],
+    "permissions": [
+      "storage",
+      "activeTab"
+    ],
+    "commands": {
+      "fix-selection": {
+        "suggested_key": {
+          "default": "Alt+C"
+        },
+        "description": "Corrigir texto selecionado com IA"
+      }
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@ant-design/icons": "^6.3.4",
+    "@plasmohq/storage": "^1.15.0",
+    "antd": "^6.6.4",
+    "lucide-react": "^1.46.0",
+    "plasmo": "^0.90.5",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/chrome": "^0.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.1",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.7.2"
+  }
+}
