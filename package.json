@@ -11,9 +11,6 @@
   "displayName": "Polite",
   "manifest": {
     "name": "Polite",
-    "action": {
-      "default_title": "Abrir Polite"
-    },
     "host_permissions": [
       "https://api.groq.com/*"
     ],
