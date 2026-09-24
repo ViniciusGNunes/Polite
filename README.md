@@ -2,7 +2,7 @@
 
 O Polite é uma extensão de navegador para corrigir e melhorar textos enquanto você digita. Ele usa a IA da Groq, então as correções são super rápidas.
 
-A ideia é simples: você seleciona qualquer texto que acabou de escrever (seja num input, textarea ou editor de texto), clica no botão que aparece, e a IA corrige a gramática ou ajusta o tom (pra deixar mais profissional, conciso, etc).
+A ideia é simples: você seleciona qualquer texto que acabou de escrever (seja num input, textarea ou editor de texto), clica no botão que aparece (ou pressiona Alt+C), e a IA corrige a gramática ou traduz o texto para o idioma que você escolher.
 
 ## Como rodar localmente
 

@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react"
-import { Storage } from "@plasmohq/storage"
-import { 
-  ConfigProvider, 
-  Typography, 
-  Input, 
-  Button, 
-  Space, 
-  Alert, 
-  Divider, 
-  message, 
+import {
+  ConfigProvider,
+  Typography,
+  Input,
+  Button,
+  Space,
+  message,
   Tooltip,
   Row,
   Col,
@@ -27,22 +24,23 @@ import {
   DeleteOutlined
 } from "@ant-design/icons"
 import "./style.css"
+import { localStorage, syncStorage } from "./utils/storage"
+import { DEFAULT_FALLBACK_MODEL } from "./utils/models"
 
 const { Text } = Typography
 
 export default function IndexPopup() {
   const [apiKey, setApiKey] = useState("")
-  const [activeModel, setActiveModel] = useState("openai/gpt-oss-20b")
+  const [activeModel, setActiveModel] = useState(DEFAULT_FALLBACK_MODEL)
   const [isEditingKey, setIsEditingKey] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const storage = new Storage()
   const [messageApi, contextHolder] = message.useMessage()
 
   useEffect(() => {
     Promise.all([
-      storage.get("groq_api_key"),
-      storage.get("groq_model")
+      localStorage.get("groq_api_key"),
+      syncStorage.get("groq_model")
     ]).then(([key, model]) => {
       if (key) {
         setApiKey(key as string)
@@ -60,7 +58,7 @@ export default function IndexPopup() {
     }
     setLoading(true)
     try {
-      await storage.set("groq_api_key", apiKey.trim())
+      await localStorage.set("groq_api_key", apiKey.trim())
       messageApi.success("API Key salva com sucesso!")
       setIsEditingKey(false)
     } catch {
@@ -72,10 +70,7 @@ export default function IndexPopup() {
 
   const handleRemoveKey = async () => {
     try {
-      await storage.remove("groq_api_key")
-      if (chrome?.storage?.local) {
-        await chrome.storage.local.remove("groq_api_key")
-      }
+      await localStorage.remove("groq_api_key")
       setApiKey("")
       setIsEditingKey(true)
       messageApi.success("API Key removida!")

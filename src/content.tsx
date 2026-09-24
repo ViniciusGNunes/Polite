@@ -1,13 +1,12 @@
 import cssText from "data-text:~/style.css"
 import type { PlasmoCSConfig, PlasmoGetStyle } from "plasmo"
-import { Storage } from "@plasmohq/storage"
 import { useEffect, useState, useRef, useCallback, useMemo } from "react"
-import { 
-  Copy, 
-  Check, 
-  Replace, 
-  X, 
-  Loader2, 
+import {
+  Copy,
+  Check,
+  Replace,
+  X,
+  Loader2,
   GripVertical,
   Split,
   AlignLeft,
@@ -16,6 +15,8 @@ import {
 } from "lucide-react"
 import { computeWordDiff, getDiffStats, type DiffPart } from "./utils/diff"
 import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from "./utils/languages"
+import { syncStorage } from "./utils/storage"
+import { isEditableTextInput, replaceInputRange, replaceRangeSelection, copyToClipboard } from "./utils/replace"
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"]
@@ -47,14 +48,33 @@ const ACTION_MODES = [
   { id: "translate", label: "Traduzir", icon: Globe }
 ]
 
+/**
+ * Shrinks [start, end) inward past any leading/trailing whitespace, so the
+ * range that gets replaced later matches exactly the (trimmed) text that
+ * was sent to the AI — otherwise Replace eats or joins surrounding spaces.
+ */
+function trimRange(fullValue: string, start: number, end: number): { text: string; start: number; end: number } {
+  const raw = fullValue.substring(start, end)
+  const leadingWs = raw.match(/^\s*/)?.[0].length || 0
+  const trailingWs = raw.match(/\s*$/)?.[0].length || 0
+  return {
+    text: raw.slice(leadingWs, raw.length - trailingWs),
+    start: start + leadingWs,
+    end: end - trailingWs
+  }
+}
+
 function detectActiveSelection(allowInputFallback = false): SelectionState | null {
-  // 1. Check if active element is an input or textarea
+  // 1. Check if active element is a text-like input or textarea. Password
+  // fields and other non-text input types (email, number, ...) are
+  // deliberately excluded: their contents must never be read or sent
+  // anywhere, and some don't support setSelectionRange at all.
   const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
-  if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) {
-    const start = activeEl.selectionStart
-    const end = activeEl.selectionEnd
-    if (typeof start === "number" && typeof end === "number" && end - start >= 2) {
-      const text = activeEl.value.substring(start, end).trim()
+  if (activeEl && isEditableTextInput(activeEl)) {
+    const selStart = activeEl.selectionStart
+    const selEnd = activeEl.selectionEnd
+    if (typeof selStart === "number" && typeof selEnd === "number" && selEnd - selStart >= 2) {
+      const { text, start, end } = trimRange(activeEl.value, selStart, selEnd)
       if (text.length >= 2) {
         const rect = activeEl.getBoundingClientRect()
         return {
@@ -73,7 +93,7 @@ function detectActiveSelection(allowInputFallback = false): SelectionState | nul
       }
     } else if (allowInputFallback && activeEl.value && activeEl.value.trim().length >= 2) {
       // If user presses Alt+C while focused on input/textarea without active highlight
-      const text = activeEl.value.trim()
+      const { text, start, end } = trimRange(activeEl.value, 0, activeEl.value.length)
       const rect = activeEl.getBoundingClientRect()
       return {
         text,
@@ -85,8 +105,8 @@ function detectActiveSelection(allowInputFallback = false): SelectionState | nul
         },
         isInput: true,
         inputEl: activeEl,
-        start: 0,
-        end: activeEl.value.length
+        start,
+        end
       }
     }
   }
@@ -155,25 +175,37 @@ export default function ContentUI() {
 
   // Check blacklisted domains and load preferred translation language on mount
   useEffect(() => {
-    const storage = new Storage()
-    storage.get("ignored_domains").then((raw) => {
-      if (raw) {
-        let domains: string[] = []
-        try {
-          domains = typeof raw === "string" ? JSON.parse(raw) : raw
-        } catch {}
-        const currentHost = window.location.hostname.toLowerCase()
-        if (domains.some((d) => d && currentHost.includes(d.toLowerCase().trim()))) {
-          setIsBlacklisted(true)
-        }
-      }
-    })
+    const checkBlacklist = (raw: unknown) => {
+      let domains: string[] = []
+      try {
+        domains = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : [])
+      } catch {}
+      const currentHost = window.location.hostname.toLowerCase()
+      const matched = domains.some((d) => {
+        if (!d) return false
+        const domain = d.toLowerCase().trim()
+        return currentHost === domain || currentHost.endsWith(`.${domain}`)
+      })
+      setIsBlacklisted(matched)
+    }
 
-    storage.get("translation_target_lang").then((savedLang) => {
+    syncStorage.get("ignored_domains").then(checkBlacklist)
+
+    syncStorage.get("translation_target_lang").then((savedLang) => {
       if (savedLang && typeof savedLang === "string") {
         setTargetLanguage(savedLang)
       }
     })
+
+    // React immediately to blacklist edits made in the Options page, instead
+    // of requiring a page reload. Same callback reference is passed to
+    // watch/unwatch so the listener can actually be removed on cleanup.
+    const onDomainsChange = (change: { newValue?: unknown }) => checkBlacklist(change.newValue)
+    const watchMap = { ignored_domains: onDomainsChange }
+    syncStorage.watch(watchMap)
+    return () => {
+      syncStorage.unwatch(watchMap)
+    }
   }, [])
 
   const checkSelection = useCallback(() => {
@@ -229,6 +261,7 @@ export default function ContentUI() {
     setIsOpen(true)
     setLoading(true)
     setError("")
+    setCorrectedText("") // avoid Enter/Replace re-using a stale result from a previous request
     setActiveMode(modeToUse)
 
     const chosenLang = langToUse || targetLanguageRef.current || DEFAULT_LANGUAGE
@@ -255,6 +288,7 @@ export default function ContentUI() {
 
   const triggerFix = useCallback((explicitSel?: SelectionState) => {
     if (isBlacklisted) return
+    if (isOpenRef.current) return // popover already open; ignore duplicate shortcut triggers
 
     const targetSel = explicitSel || detectActiveSelection(true) || selectionRef.current
     if (!targetSel || !targetSel.text || targetSel.text.trim().length < 2) {
@@ -309,7 +343,7 @@ export default function ContentUI() {
         handleClose()
       } else if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const activeTag = document.activeElement?.tagName
-        if (activeTag !== "INPUT" && activeTag !== "TEXTAREA") {
+        if (activeTag !== "INPUT" && activeTag !== "TEXTAREA" && !loading && !error && correctedText) {
           e.preventDefault()
           handleReplace()
         }
@@ -318,7 +352,7 @@ export default function ContentUI() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [correctedText, selection])
+  }, [correctedText, selection, loading, error])
 
   // Dragging logic
   const handleStartDrag = (e: React.MouseEvent) => {
@@ -366,100 +400,49 @@ export default function ContentUI() {
     setActiveTab("result")
   }
 
-  const handleCopy = (e?: React.MouseEvent) => {
+  const copiedResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const handleCopy = async (e?: React.MouseEvent) => {
     e?.preventDefault()
     e?.stopPropagation()
-    navigator.clipboard.writeText(correctedText)
+    const ok = await copyToClipboard(correctedText)
+    if (!ok) {
+      setError("Não foi possível copiar para a área de transferência. Selecione e copie o texto manualmente.")
+      return
+    }
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    clearTimeout(copiedResetRef.current)
+    copiedResetRef.current = setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleReplace = (e?: React.MouseEvent) => {
+  useEffect(() => {
+    return () => clearTimeout(copiedResetRef.current)
+  }, [])
+
+  const handleReplace = async (e?: React.MouseEvent) => {
     e?.preventDefault()
     e?.stopPropagation()
 
     if (selection?.isInput && selection.inputEl) {
-      const el = selection.inputEl
-      const start = selection.start ?? el.selectionStart ?? 0
-      const end = selection.end ?? el.selectionEnd ?? 0
-      
-      const before = el.value.substring(0, start)
-      const after = el.value.substring(end)
-      
-      el.value = before + correctedText + after
-      
-      const newCursorPos = start + correctedText.length
-      el.setSelectionRange(newCursorPos, newCursorPos)
-      
-      el.dispatchEvent(new Event("input", { bubbles: true }))
-      el.dispatchEvent(new Event("change", { bubbles: true }))
-      el.focus()
+      const start = selection.start ?? selection.inputEl.selectionStart ?? 0
+      const end = selection.end ?? selection.inputEl.selectionEnd ?? 0
+      replaceInputRange(selection.inputEl, start, end, correctedText)
     } else if (selection?.range) {
-      let replaced = false
-      const range = selection.range
-      const sel = window.getSelection()
-
-      // 1. Restore the user's selection in the document
-      if (sel) {
-        sel.removeAllRanges()
-        sel.addRange(range)
-      }
-
-      // 2. Identify and focus the closest contenteditable / rich editor container
-      const commonAncestor = range.commonAncestorContainer
-      const containerEl = commonAncestor
-        ? (commonAncestor.nodeType === Node.ELEMENT_NODE ? (commonAncestor as HTMLElement) : commonAncestor.parentElement)
-        : null
-      const editableRoot = containerEl?.closest('[contenteditable="true"], [role="textbox"]') as HTMLElement | null
-
-      if (editableRoot) {
-        editableRoot.focus()
-      }
-
-      // 3. Try browser native insertText (best for rich text editors with undo history)
-      try {
-        replaced = document.execCommand("insertText", false, correctedText)
-      } catch (err) {
-        replaced = false
-      }
-
-      // 4. If execCommand was not handled or failed, replace directly via DOM Range
+      const replaced = replaceRangeSelection(selection.range, correctedText)
       if (!replaced) {
-        try {
-          range.deleteContents()
-          const textNode = document.createTextNode(correctedText)
-          range.insertNode(textNode)
-
-          // Position cursor right after the replacement
-          const newRange = document.createRange()
-          newRange.setStartAfter(textNode)
-          newRange.setEndAfter(textNode)
-          sel?.removeAllRanges()
-          sel?.addRange(newRange)
-
-          // Dispatch input event to notify rich text frameworks (Notion, TipTap, Lexical, DraftJS, Slate)
-          const inputEvt = new InputEvent("input", {
-            bubbles: true,
-            cancelable: true,
-            inputType: "insertText",
-            data: correctedText
-          })
-          textNode.parentElement?.dispatchEvent(inputEvt)
-          editableRoot?.dispatchEvent(inputEvt)
-          editableRoot?.dispatchEvent(new Event("change", { bubbles: true }))
-
-          replaced = true
-        } catch (domErr) {
-          replaced = false
+        // Not an editable target (e.g. plain page text): don't touch the
+        // DOM, just hand the user the corrected text via clipboard.
+        const copied = await copyToClipboard(correctedText)
+        if (copied) {
+          setCopied(true)
+        } else {
+          setError("Não foi possível copiar automaticamente. Copie o texto do resultado manualmente.")
+          return
         }
       }
-
-      if (!replaced) {
-        handleCopy()
-        alert("Texto copiado para a área de transferência! Cole no campo com Ctrl+V.")
-      }
     } else {
-      handleCopy()
+      await handleCopy()
+      return
     }
 
     handleClose()
@@ -644,8 +627,7 @@ export default function ContentUI() {
                 onChange={(e) => {
                   const newLang = e.target.value
                   setTargetLanguage(newLang)
-                  const storage = new Storage()
-                  storage.set("translation_target_lang", newLang)
+                  syncStorage.set("translation_target_lang", newLang)
                   if (activeMode === "translate" && selection?.text) {
                     executeProcessing(selection.text, "translate", newLang)
                   }

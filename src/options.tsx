@@ -1,36 +1,32 @@
 import React, { useState, useEffect } from "react"
-import { Storage } from "@plasmohq/storage"
-import { 
-  ConfigProvider, 
-  Layout, 
-  Card, 
-  Typography, 
-  Input, 
-  Button, 
-  Space, 
-  Radio, 
-  Alert, 
-  Divider, 
-  Row, 
-  Col, 
-  Tag, 
-  message, 
+import {
+  ConfigProvider,
+  Layout,
+  Card,
+  Typography,
+  Input,
+  Button,
+  Space,
+  Radio,
+  Alert,
+  Row,
+  Col,
+  Tag,
+  message,
   theme,
   Spin,
   Empty,
   Popconfirm
 } from "antd"
-import { 
-  KeyOutlined, 
-  ExperimentOutlined, 
-  SaveOutlined, 
-  ApiOutlined, 
-  ThunderboltFilled, 
-  LinkOutlined, 
-  ReadOutlined,
+import {
+  KeyOutlined,
+  ExperimentOutlined,
+  SaveOutlined,
+  ApiOutlined,
+  ThunderboltFilled,
+  LinkOutlined,
   ControlOutlined,
   ReloadOutlined,
-  CheckCircleOutlined,
   StopOutlined,
   HistoryOutlined,
   DeleteOutlined,
@@ -38,30 +34,11 @@ import {
   PlusOutlined
 } from "@ant-design/icons"
 import "./style.css"
+import { localStorage, syncStorage } from "./utils/storage"
+import { DEPRECATED_MODELS, DEFAULT_FALLBACK_MODEL, RECOMMENDED_MODELS, isKnownModel } from "./utils/models"
 
 const { Header, Content } = Layout
 const { Title, Text, Paragraph, Link } = Typography
-
-const DEFAULT_RECOMMENDED_MODELS = [
-  {
-    value: "openai/gpt-oss-20b",
-    title: "GPT-OSS 20B (OpenAI)",
-    tag: <Tag color="green">Recomendado / Ultra Rápido</Tag>,
-    description: "Modelo de produção com alta velocidade e raciocínio nos LPUs da Groq. Substituto oficial para o Llama 8B."
-  },
-  {
-    value: "openai/gpt-oss-120b",
-    title: "GPT-OSS 120B (OpenAI)",
-    tag: <Tag color="blue">Mais Inteligente</Tag>,
-    description: "Modelo potente para raciocínio profundo, parágrafos complexos e reescritas elaboradas."
-  },
-  {
-    value: "qwen/qwen3.6-27b",
-    title: "Qwen 3.6 27B",
-    tag: <Tag color="purple">Multilíngue & Raciocínio</Tag>,
-    description: "Excelente consistência sintática, precisão gramatical estrita e vocabulário rico."
-  }
-]
 
 export default function OptionsPage() {
   const [apiKey, setApiKey] = useState("")
@@ -81,24 +58,15 @@ export default function OptionsPage() {
   const [historyList, setHistoryList] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
 
-  const storage = new Storage()
   const [messageApi, contextHolder] = message.useMessage()
 
   const loadHistory = async () => {
     setLoadingHistory(true)
     try {
       let historyData: any[] = []
-      const raw = await storage.get("groq_correction_history")
+      const raw = await localStorage.get("groq_correction_history")
       if (raw) {
         historyData = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : [])
-      }
-
-      if ((!historyData || historyData.length === 0) && chrome?.storage?.local) {
-        const local = await chrome.storage.local.get("groq_correction_history")
-        if (local?.groq_correction_history) {
-          const lRaw = local.groq_correction_history
-          historyData = typeof lRaw === "string" ? JSON.parse(lRaw) : (Array.isArray(lRaw) ? lRaw : [])
-        }
       }
 
       setHistoryList(Array.isArray(historyData) ? historyData : [])
@@ -113,7 +81,7 @@ export default function OptionsPage() {
   useEffect(() => {
     // Listen for storage changes in real time
     const handleStorageChange = (changes: any, areaName: string) => {
-      if (changes.groq_correction_history) {
+      if (areaName === "local" && changes.groq_correction_history) {
         const newRaw = changes.groq_correction_history.newValue
         if (newRaw) {
           const parsed = typeof newRaw === "string" ? JSON.parse(newRaw) : (Array.isArray(newRaw) ? newRaw : [])
@@ -137,30 +105,32 @@ export default function OptionsPage() {
 
   useEffect(() => {
     Promise.all([
-      storage.get("groq_api_key"),
-      storage.get("groq_model"),
-      storage.get("groq_available_models"),
-      storage.get("ignored_domains")
+      localStorage.get("groq_api_key"),
+      syncStorage.get("groq_model"),
+      syncStorage.get("groq_available_models"),
+      syncStorage.get("ignored_domains")
     ]).then(([key, model, cachedModels, rawDomains]) => {
       if (key) setApiKey(key as string)
-      
-      const savedModel = (model as string) || "openai/gpt-oss-20b"
-      if (
-        savedModel === "llama-3.1-8b-instant" || 
-        savedModel === "llama-3.3-70b-versatile" || 
-        savedModel === "mixtral-8x7b-32768" || 
-        savedModel === "gemma2-9b-it"
-      ) {
-        setSelectedModel("openai/gpt-oss-20b")
-      } else {
-        setSelectedModel(savedModel)
-      }
 
+      let discovered: string[] = []
       if (cachedModels) {
         try {
           const parsed = JSON.parse(cachedModels as string)
-          if (Array.isArray(parsed)) setDiscoveredModels(parsed)
+          if (Array.isArray(parsed)) discovered = parsed
         } catch (e) {}
+      }
+      setDiscoveredModels(discovered)
+
+      const savedModel = (model as string) || DEFAULT_FALLBACK_MODEL
+      if (DEPRECATED_MODELS.includes(savedModel)) {
+        setSelectedModel(DEFAULT_FALLBACK_MODEL)
+      } else if (isKnownModel(savedModel) || discovered.includes(savedModel)) {
+        setSelectedModel(savedModel)
+      } else {
+        // Saved model isn't in the recommended or discovered lists: surface it
+        // as the custom model so the UI reflects what's actually active.
+        setSelectedModel(savedModel)
+        setCustomModel(savedModel)
       }
 
       if (rawDomains) {
@@ -205,9 +175,9 @@ export default function OptionsPage() {
     const modelToSave = customModel.trim() || selectedModel
     try {
       await Promise.all([
-        storage.set("groq_api_key", apiKey.trim()),
-        storage.set("groq_model", modelToSave),
-        storage.set("ignored_domains", JSON.stringify(ignoredDomains))
+        localStorage.set("groq_api_key", apiKey.trim()),
+        syncStorage.set("groq_model", modelToSave),
+        syncStorage.set("ignored_domains", JSON.stringify(ignoredDomains))
       ])
       messageApi.success("Todas as configurações foram salvas com sucesso!")
     } catch (err) {
@@ -257,7 +227,7 @@ export default function OptionsPage() {
 
   const handleRemoveKey = async () => {
     try {
-      await storage.remove("groq_api_key")
+      await localStorage.remove("groq_api_key")
       setApiKey("")
       setTestResult(null)
       messageApi.success("API Key removida com sucesso!")
@@ -276,23 +246,20 @@ export default function OptionsPage() {
     const updated = [...ignoredDomains, domain]
     setIgnoredDomains(updated)
     setNewDomainInput("")
-    storage.set("ignored_domains", JSON.stringify(updated))
+    syncStorage.set("ignored_domains", JSON.stringify(updated))
     messageApi.success(`Domínio ${domain} adicionado à lista de exclusão.`)
   }
 
   const handleRemoveDomain = (domainToRemove: string) => {
     const updated = ignoredDomains.filter((d) => d !== domainToRemove)
     setIgnoredDomains(updated)
-    storage.set("ignored_domains", JSON.stringify(updated))
+    syncStorage.set("ignored_domains", JSON.stringify(updated))
     messageApi.info(`Domínio ${domainToRemove} removido.`)
   }
 
   const handleClearHistory = async () => {
     try {
-      await storage.set("groq_correction_history", [])
-      if (chrome?.storage?.local) {
-        await chrome.storage.local.set({ groq_correction_history: [] })
-      }
+      await localStorage.set("groq_correction_history", [])
       setHistoryList([])
       messageApi.success("Histórico de correções limpo com sucesso!")
     } catch {
@@ -386,7 +353,7 @@ export default function OptionsPage() {
             {/* Card 1: Groq API Key */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "20px 24px" }}
+              styles={{ body: { padding: "20px 24px" } }}
               title={
                 <Space size={8}>
                   <KeyOutlined style={{ color: "#1677ff" }} />
@@ -460,7 +427,7 @@ export default function OptionsPage() {
             {/* Card 2: AI Model Selection */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "20px 24px" }}
+              styles={{ body: { padding: "20px 24px" } }}
               title={
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <Space size={8}>
@@ -492,7 +459,7 @@ export default function OptionsPage() {
                 style={{ width: "100%" }}
               >
                 <Space direction="vertical" size={12} style={{ width: "100%" }}>
-                  {DEFAULT_RECOMMENDED_MODELS.map((model) => (
+                  {RECOMMENDED_MODELS.map((model) => (
                     <Card
                       key={model.value}
                       size="small"
@@ -507,7 +474,7 @@ export default function OptionsPage() {
                         cursor: "pointer",
                         transition: "all 0.2s"
                       }}
-                      bodyStyle={{ padding: "12px 16px" }}
+                      styles={{ body: { padding: "12px 16px" } }}
                     >
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <Radio value={model.value}>
@@ -516,7 +483,7 @@ export default function OptionsPage() {
                           </Text>
                           <code style={{ fontSize: 11, marginLeft: 8, color: "#8c8c8c" }}>({model.value})</code>
                         </Radio>
-                        {model.tag}
+                        <Tag color={model.tagColor}>{model.tagLabel}</Tag>
                       </div>
                       <Paragraph type="secondary" style={{ fontSize: 12, marginTop: 6, marginBottom: 0, paddingLeft: 24, color: "#8c8c8c" }}>
                         {model.description}
@@ -574,7 +541,7 @@ export default function OptionsPage() {
             {/* Card 3: Blacklist / Ignored Domains */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "20px 24px" }}
+              styles={{ body: { padding: "20px 24px" } }}
               title={
                 <Space size={8}>
                   <StopOutlined style={{ color: "#ff4d4f" }} />
@@ -636,7 +603,7 @@ export default function OptionsPage() {
             {/* Card 5: Full History */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "20px 24px" }}
+              styles={{ body: { padding: "20px 24px" } }}
               title={
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
                   <Space size={8}>
@@ -676,7 +643,10 @@ export default function OptionsPage() {
             >
               {loadingHistory ? (
                 <div style={{ textAlign: "center", padding: "24px 0" }}>
-                  <Spin tip="Carregando histórico..." />
+                  <Spin>
+                    <div style={{ padding: "4px 0", minWidth: 160 }} />
+                  </Spin>
+                  <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 8 }}>Carregando histórico...</div>
                 </div>
               ) : historyList.length === 0 ? (
                 <Empty 
@@ -698,14 +668,11 @@ export default function OptionsPage() {
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                         <Space size={6}>
                           <Tag color="blue" style={{ fontSize: 11, margin: 0 }}>
-                            {item.mode === "fix" || item.mode === "standard" ? "Correção" : item.mode}
+                            {item.mode || "Corrigir"}
                           </Tag>
                           <Tag style={{ fontSize: 10, margin: 0, backgroundColor: "#1f1f1f", borderColor: "#303030", color: "#8c8c8c" }}>
                             {item.modelUsed || "Groq"}
                           </Tag>
-                          {item.latencyMs && (
-                            <span style={{ fontSize: 10, color: "#666" }}>{item.latencyMs}ms</span>
-                          )}
                         </Space>
                         <Space size={8}>
                           <span style={{ fontSize: 11, color: "#666" }}>
@@ -741,7 +708,7 @@ export default function OptionsPage() {
             <Card 
               size="small" 
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030", marginBottom: 32 }}
-              bodyStyle={{ padding: "14px 20px" }}
+              styles={{ body: { padding: "14px 20px" } }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Text type="secondary" style={{ fontSize: 12, color: "#666" }}>

@@ -1,50 +1,64 @@
 import React, { useState, useEffect, useRef, useMemo } from "react"
-import { Storage } from "@plasmohq/storage"
-import { 
-  ConfigProvider, 
-  Layout, 
-  Card, 
-  Typography, 
-  Input, 
-  Button, 
-  Space, 
-  Alert, 
-  Tag, 
-  message, 
+import {
+  ConfigProvider,
+  Layout,
+  Card,
+  Typography,
+  Input,
+  Button,
+  Space,
+  Alert,
+  Tag,
+  message,
   Spin,
   theme,
   Segmented
 } from "antd"
-import { 
-  ExperimentOutlined, 
-  SettingOutlined, 
-  ReloadOutlined, 
-  CopyOutlined, 
+import {
+  ExperimentOutlined,
+  SettingOutlined,
+  ReloadOutlined,
+  CopyOutlined,
   ThunderboltFilled,
   CloseOutlined,
   EditOutlined,
-  InfoCircleOutlined,
-  HolderOutlined,
-  BulbOutlined,
-  ClockCircleOutlined
+  HolderOutlined
 } from "@ant-design/icons"
 import { computeWordDiff, getDiffStats, type DiffPart } from "../utils/diff"
 import { SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE } from "../utils/languages"
+import { syncStorage } from "../utils/storage"
+import { isEditableTextInput, replaceInputRange, replaceRangeSelection, copyToClipboard } from "../utils/replace"
 import "../style.css"
 
 const { Header, Content } = Layout
-const { Title, Text, Paragraph } = Typography
+const { Title, Text } = Typography
 
 const ACTION_MODES = [
   { id: "fix", label: "Corrigir" },
   { id: "translate", label: "Traduzir" }
 ]
 
+/**
+ * Shrinks [start, end) inward past leading/trailing whitespace, so the
+ * range replaced later matches exactly the (trimmed) text sent to the AI.
+ */
+function trimRange(fullValue: string, start: number, end: number): { text: string; start: number; end: number } {
+  const raw = fullValue.substring(start, end)
+  const leadingWs = raw.match(/^\s*/)?.[0].length || 0
+  const trailingWs = raw.match(/\s*$/)?.[0].length || 0
+  return {
+    text: raw.slice(leadingWs, raw.length - trailingWs),
+    start: start + leadingWs,
+    end: end - trailingWs
+  }
+}
+
 export default function TestPage() {
   const [simpleInput, setSimpleInput] = useState("Eu vai para a padaria comprar pao amanhã de tarde.")
   const [textareaText, setTextareaText] = useState(
     "Ontem nois fumo no cinema mas o filme tavam muito chato. Agente resolvemos ir enbora antes de acaba porque nois tinha que acordar sedo no outro dia."
   )
+  const [editableKey, setEditableKey] = useState(0)
   const [editableHtml, setEditableHtml] = useState(
     `<p>Este é um teste de editor de texto rico tipo <b>Notion</b> ou <b>Google Docs</b>.</p><p>Selecione esta frasi com bastanti erroz ortograficos e sintaticos para testar a inteligência artificial da Groq!</p>`
   )
@@ -79,8 +93,7 @@ export default function TestPage() {
   const [messageApi, contextHolder] = message.useMessage()
 
   useEffect(() => {
-    const storage = new Storage()
-    storage.get("translation_target_lang").then((savedLang) => {
+    syncStorage.get("translation_target_lang").then((savedLang) => {
       if (savedLang && typeof savedLang === "string") {
         setTargetLanguage(savedLang)
       }
@@ -88,12 +101,14 @@ export default function TestPage() {
   }, [])
 
   const detectTestSelection = (allowInputFallback = false) => {
+    // Only text-like inputs and textareas: password fields and other
+    // non-text input types must never be read or sent anywhere.
     const activeEl = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null
-    if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) {
-      const start = activeEl.selectionStart
-      const end = activeEl.selectionEnd
-      if (typeof start === "number" && typeof end === "number" && end - start >= 2) {
-        const text = activeEl.value.substring(start, end).trim()
+    if (activeEl && isEditableTextInput(activeEl)) {
+      const selStart = activeEl.selectionStart
+      const selEnd = activeEl.selectionEnd
+      if (typeof selStart === "number" && typeof selEnd === "number" && selEnd - selStart >= 2) {
+        const { text, start, end } = trimRange(activeEl.value, selStart, selEnd)
         if (text.length >= 2) {
           const rect = activeEl.getBoundingClientRect()
           return {
@@ -107,7 +122,7 @@ export default function TestPage() {
           }
         }
       } else if (allowInputFallback && activeEl.value && activeEl.value.trim().length >= 2) {
-        const text = activeEl.value.trim()
+        const { text, start, end } = trimRange(activeEl.value, 0, activeEl.value.length)
         const rect = activeEl.getBoundingClientRect()
         return {
           text,
@@ -115,8 +130,8 @@ export default function TestPage() {
           left: Math.min(window.innerWidth - 180, Math.max(10, rect.left)),
           isInput: true,
           inputEl: activeEl,
-          start: 0,
-          end: activeEl.value.length
+          start,
+          end
         }
       }
     }
@@ -194,14 +209,17 @@ export default function TestPage() {
         e.preventDefault()
         handleClose()
       } else if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault()
-        handleReplace()
+        const activeTag = document.activeElement?.tagName
+        if (activeTag !== "INPUT" && activeTag !== "TEXTAREA" && !loading && !error && correctedText) {
+          e.preventDefault()
+          handleReplace()
+        }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown, true)
     return () => window.removeEventListener("keydown", handleKeyDown, true)
-  }, [isOpen, floatingSelection, correctedText])
+  }, [isOpen, floatingSelection, correctedText, loading, error])
 
   const handleStartDrag = (e: React.MouseEvent) => {
     if (e.button !== 0) return
@@ -253,6 +271,7 @@ export default function TestPage() {
     setIsOpen(true)
     setLoading(true)
     setError("")
+    setCorrectedText("") // avoid Enter/Replace re-using a stale result from a previous request
     setActiveMode(modeToUse)
 
     const chosenLang = langToUse || targetLanguage || DEFAULT_LANGUAGE
@@ -277,12 +296,27 @@ export default function TestPage() {
     }
   }
 
-  const handleReplace = () => {
+  const copyFallback = async () => {
+    const ok = await copyToClipboard(correctedText)
+    if (ok) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+      messageApi.info("Texto copiado para a área de transferência.")
+    } else {
+      messageApi.error("Não foi possível copiar. Copie o texto manualmente.")
+    }
+    return ok
+  }
+
+  const handleReplace = async () => {
     if (floatingSelection?.isInput && floatingSelection.inputEl) {
+      // These test inputs are React-controlled, so update React state
+      // directly (matches how a real page's own React state would need to
+      // be updated too — mutating el.value alone wouldn't stick here).
       const el = floatingSelection.inputEl
       const start = floatingSelection.start ?? 0
       const end = floatingSelection.end ?? 0
-      
+
       const before = el.value.substring(0, start)
       const after = el.value.substring(end)
       const fullNewText = before + correctedText + after
@@ -294,57 +328,17 @@ export default function TestPage() {
       }
       messageApi.success("Texto substituído no campo!")
     } else if (floatingSelection?.range) {
-      const range = floatingSelection.range
-      const sel = window.getSelection()
-      if (sel) {
-        sel.removeAllRanges()
-        sel.addRange(range)
-      }
-
-      // 1. Try document.execCommand first
-      let replaced = false
-      try {
-        replaced = document.execCommand("insertText", false, correctedText)
-      } catch {
-        replaced = false
-      }
-
-      // 2. Direct DOM Range manipulation if execCommand failed
-      if (!replaced) {
-        try {
-          range.deleteContents()
-          const textNode = document.createTextNode(correctedText)
-          range.insertNode(textNode)
-
-          const newRange = document.createRange()
-          newRange.setStartAfter(textNode)
-          newRange.setEndAfter(textNode)
-          sel?.removeAllRanges()
-          sel?.addRange(newRange)
-
-          const editable = textNode.parentElement?.closest('[contenteditable="true"]') as HTMLElement | null
-          if (editable) {
-            editable.dispatchEvent(new Event("input", { bubbles: true }))
-          }
-          replaced = true
-        } catch {
-          replaced = false
-        }
-      }
-
+      const replaced = replaceRangeSelection(floatingSelection.range, correctedText)
       if (replaced) {
         messageApi.success("Texto substituído no editor rico!")
       } else {
-        navigator.clipboard.writeText(correctedText)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-        messageApi.info("Texto copiado para a área de transferência.")
+        // Not an editable target: don't touch the DOM, just copy.
+        const copied = await copyFallback()
+        if (!copied) return
       }
     } else {
-      navigator.clipboard.writeText(correctedText)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-      messageApi.info("Texto copiado para a área de transferência.")
+      const copied = await copyFallback()
+      if (!copied) return
     }
     handleClose()
   }
@@ -357,6 +351,9 @@ export default function TestPage() {
     setEditableHtml(
       `<p>Este é um teste de editor de texto rico tipo <b>Notion</b> ou <b>Google Docs</b>.</p><p>Selecione esta frasi com bastanti erroz ortograficos e sintaticos para testar a inteligência artificial da Groq!</p>`
     )
+    // dangerouslySetInnerHTML only applies on mount, so force a remount to
+    // actually reset the DOM the user may have edited.
+    setEditableKey((k) => k + 1)
     setFloatingSelection(null)
     setIsOpen(false)
     messageApi.info("Textos reiniciados para o padrão original.")
@@ -459,8 +456,8 @@ export default function TestPage() {
                 <div style={{ fontSize: 13, lineHeight: "20px" }}>
                   1. <b>Selecione</b> qualquer trecho dos textos abaixo.<br/>
                   2. Clique no botão flutuante <b>"Corrigir com IA"</b> ou pressione <Tag color="blue" style={{ margin: "0 2px" }}>Alt + C</Tag>.<br/>
-                  3. Experimente alternar entre <b>Resultado</b> e <b>Comparativo (Diff)</b> para ver palavras alteradas.<br/>
-                  4. Clique nos chips rápidos (<b>Encurtar, Expandir, Formal, Inglês</b>) ou pressione <Tag color="default" style={{ margin: "0 2px" }}>Enter</Tag> para substituir!
+                  3. Experimente alternar entre <b>Resultado</b> e <b>Diff</b> para ver as palavras alteradas.<br/>
+                  4. Escolha <b>Corrigir</b> ou <b>Traduzir</b> e pressione <Tag color="default" style={{ margin: "0 2px" }}>Enter</Tag> para substituir!
                 </div>
               }
               type="info"
@@ -471,7 +468,7 @@ export default function TestPage() {
             {/* Test 1 */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "18px 22px" }}
+              styles={{ body: { padding: "18px 22px" } }}
               title={
                 <Space size={8}>
                   <Tag color="blue">1</Tag>
@@ -490,7 +487,7 @@ export default function TestPage() {
             {/* Test 2 */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "18px 22px" }}
+              styles={{ body: { padding: "18px 22px" } }}
               title={
                 <Space size={8}>
                   <Tag color="blue">2</Tag>
@@ -510,7 +507,7 @@ export default function TestPage() {
             {/* Test 3 */}
             <Card
               style={{ backgroundColor: "#1f1f1f", borderColor: "#303030" }}
-              bodyStyle={{ padding: "18px 22px" }}
+              styles={{ body: { padding: "18px 22px" } }}
               title={
                 <Space size={8}>
                   <Tag color="blue">3</Tag>
@@ -520,6 +517,7 @@ export default function TestPage() {
               extra={<Tag color="default">Notion / Google Docs</Tag>}
             >
               <div
+                key={editableKey}
                 contentEditable
                 dangerouslySetInnerHTML={{ __html: editableHtml }}
                 style={{
@@ -578,15 +576,17 @@ export default function TestPage() {
                   overflow: "hidden",
                   transition: isDragging ? "none" : "border-color 0.2s, box-shadow 0.2s"
                 }}
-                headStyle={{
-                  cursor: isDragging ? "grabbing" : "grab",
-                  userSelect: "none",
-                  backgroundColor: isDragging ? "#2a2a2a" : "#262626",
-                  borderBottom: "1px solid #303030",
-                  padding: "0 14px"
+                styles={{
+                  header: {
+                    cursor: isDragging ? "grabbing" : "grab",
+                    userSelect: "none",
+                    backgroundColor: isDragging ? "#2a2a2a" : "#262626",
+                    borderBottom: "1px solid #303030",
+                    padding: "0 14px"
+                  },
+                  body: { padding: "14px 16px" }
                 }}
                 onMouseDown={handleStartDrag}
-                bodyStyle={{ padding: "14px 16px" }}
                 title={
                   <div 
                     style={{ display: "flex", alignItems: "center", gap: 8 }}
@@ -635,8 +635,7 @@ export default function TestPage() {
                         onChange={(e) => {
                           const newLang = e.target.value
                           setTargetLanguage(newLang)
-                          const storage = new Storage()
-                          storage.set("translation_target_lang", newLang)
+                          syncStorage.set("translation_target_lang", newLang)
                           if (activeMode === "translate" && floatingSelection?.text) {
                             handleExecuteFix("translate", undefined, newLang)
                           }
@@ -663,7 +662,8 @@ export default function TestPage() {
 
                   {loading ? (
                     <div style={{ textAlign: "center", padding: "26px 0" }}>
-                      <Spin tip="Processando com a Groq..." />
+                      <Spin />
+                      <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 8 }}>Processando com a Groq...</div>
                     </div>
                   ) : error ? (
                     <Alert type="error" message={error} style={{ fontSize: 12 }} />
@@ -737,9 +737,13 @@ export default function TestPage() {
                         <Button 
                           size="small"
                           icon={<CopyOutlined />} 
-                          onClick={() => {
-                            navigator.clipboard.writeText(correctedText)
-                            messageApi.info("Copiado!")
+                          onClick={async () => {
+                            const ok = await copyToClipboard(correctedText)
+                            if (ok) {
+                              messageApi.info("Copiado!")
+                            } else {
+                              messageApi.error("Não foi possível copiar. Copie o texto manualmente.")
+                            }
                           }}
                         >
                           Copiar
