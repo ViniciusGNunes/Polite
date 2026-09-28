@@ -9,11 +9,13 @@ A ideia é simples: você seleciona qualquer texto que acabou de escrever (seja 
 Se você quiser clonar e rodar na sua máquina:
 
 1. Instale as dependências:
+
    ```bash
    npm install
    ```
 
 2. Rode o modo de desenvolvimento:
+
    ```bash
    npm run dev
    ```
@@ -24,5 +26,4 @@ Se você quiser clonar e rodar na sua máquina:
    - Clique em **Carregar sem compactação**
    - Selecione a pasta `build/polite-dev` que acabou de ser criada.
 
-**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar.
-
+**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar. test
