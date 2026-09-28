@@ -26,4 +26,4 @@ Se você quiser clonar e rodar na sua máquina:
    - Clique em **Carregar sem compactação**
    - Selecione a pasta `build/polite-dev` que acabou de ser criada.
 
-**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar. test
+**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar.
