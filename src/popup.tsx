@@ -13,17 +13,17 @@ import {
   Popconfirm,
   theme
 } from "antd"
-import { 
-  KeyOutlined, 
-  SettingOutlined, 
-  ExperimentOutlined, 
-  CheckOutlined, 
-  ThunderboltFilled,
+import {
+  KeyOutlined,
+  SettingOutlined,
+  ExperimentOutlined,
+  CheckOutlined,
   CheckCircleOutlined,
   EditOutlined,
   DeleteOutlined
 } from "@ant-design/icons"
-import "./style.css"
+import "./styles.scss"
+import politeLogoUrl from "url:../assets/icon.png"
 import { localStorage, syncStorage } from "./utils/storage"
 import { DEFAULT_FALLBACK_MODEL } from "./utils/models"
 
@@ -52,17 +52,32 @@ export default function IndexPopup() {
   }, [])
 
   const handleSave = async () => {
-    if (!apiKey.trim()) {
+    const trimmedKey = apiKey.trim()
+    if (!trimmedKey) {
       messageApi.warning("Insira uma API Key válida.")
       return
     }
     setLoading(true)
     try {
-      await localStorage.set("groq_api_key", apiKey.trim())
-      messageApi.success("API Key salva com sucesso!")
+      const result = await chrome.runtime.sendMessage({
+        action: "test_key",
+        apiKey: trimmedKey
+      })
+
+      if (result?.error) {
+        messageApi.error(result.error)
+        return
+      }
+
+      await localStorage.set("groq_api_key", trimmedKey)
+      if (result?.modelUsed) {
+        await syncStorage.set("groq_model", result.modelUsed)
+        setActiveModel(result.modelUsed)
+      }
+      messageApi.success("API Key válida e salva com sucesso!")
       setIsEditingKey(false)
-    } catch {
-      messageApi.error("Erro ao salvar API Key.")
+    } catch (err: any) {
+      messageApi.error(err?.message || "Erro ao validar/salvar API Key.")
     } finally {
       setLoading(false)
     }
@@ -118,32 +133,27 @@ export default function IndexPopup() {
           overflow: "hidden"
         }}
       >
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div 
-              style={{ 
-                width: 34, 
-                height: 34, 
-                borderRadius: 8, 
-                backgroundColor: "#111d2c", 
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 8,
+                backgroundColor: "#111d2c",
                 border: "1px solid #113560",
-                display: "flex", 
-                alignItems: "center", 
+                display: "flex",
+                alignItems: "center",
                 justifyContent: "center",
+                overflow: "hidden",
                 flexShrink: 0
               }}
             >
-              <ThunderboltFilled style={{ color: "#1677ff", fontSize: 18 }} />
+              <img src={politeLogoUrl} alt="Polite Logo" style={{ width: 28, height: 28 }} />
             </div>
-            <div>
-              <Text strong style={{ fontSize: 14, color: "#ffffff", display: "block", lineHeight: "17px" }}>
-                Polite
-              </Text>
-              <span style={{ fontSize: 11, color: "#8c8c8c" }}>
-                Groq LPU Inference
-              </span>
-            </div>
+            <Text strong style={{ fontSize: 18, color: "#ffffff", lineHeight: "22px" }}>
+              Polite
+            </Text>
           </div>
 
           <Tooltip title="Configurações">
@@ -156,7 +166,6 @@ export default function IndexPopup() {
           </Tooltip>
         </div>
 
-        {/* Status Area */}
         {isConnected ? (
           <div 
             style={{ 
@@ -212,7 +221,6 @@ export default function IndexPopup() {
             </div>
           </div>
         ) : (
-          /* API Key Input */
           <div style={{ marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <Text style={{ fontSize: 12, color: "#8c8c8c" }}>
@@ -292,7 +300,6 @@ export default function IndexPopup() {
           </div>
         )}
 
-        {/* Quick Nav Footer */}
         <Row gutter={8}>
           <Col span={12}>
             <Button 

@@ -5,6 +5,7 @@ node_modules/
 
 # Plasmo & Extension Build Output
 .plasmo/
+.plasmo-out/
 build/
 
 # TypeScript
@@ -47,3 +48,6 @@ ehthumbs.db
 *.pem
 *.crx
 *.zip
+CODE_ARCHITECTURE.md
+TEST_SUITE.md
+.gitignore

@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Corretor gramatical com IA da Groq",
   "scripts": {
-    "dev": "plasmo dev",
-    "build": "plasmo build",
-    "package": "plasmo package"
+    "dev": "node scripts/run-and-mirror.js dev",
+    "build": "node scripts/run-and-mirror.js build",
+    "package": "node scripts/package.js"
   },
   "displayName": "Polite",
   "manifest": {
@@ -43,6 +43,7 @@
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",
     "postcss": "^8.5.28",
+    "sass": "^1.105.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.7.2"
   }
