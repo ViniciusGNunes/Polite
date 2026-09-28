@@ -3,18 +3,11 @@ export interface DiffPart {
   value: string
 }
 
-/**
- * Tokenizes text preserving words and whitespace.
- */
 function tokenize(text: string): string[] {
-  // Matches words or sequences of whitespace/punctuation
   const regex = /\s+|[^\s]+/g
   return text.match(regex) || []
 }
 
-/**
- * Computes a word-level diff between two strings using LCS (Longest Common Subsequence).
- */
 export function computeWordDiff(original: string, updated: string): DiffPart[] {
   if (!original && !updated) return []
   if (!original) return [{ type: "added", value: updated }]
@@ -27,10 +20,7 @@ export function computeWordDiff(original: string, updated: string): DiffPart[] {
   const n = a.length
   const m = b.length
 
-  // Build LCS matrix
-  // For memory safety with very long text, clamp matrix size
   if (n * m > 1000000) {
-    // Fallback for massive text
     return [
       { type: "removed", value: original },
       { type: "added", value: updated }
@@ -49,7 +39,6 @@ export function computeWordDiff(original: string, updated: string): DiffPart[] {
     }
   }
 
-  // Backtrack to find diff
   const rawDiff: DiffPart[] = []
   let i = n
   let j = m
@@ -70,7 +59,6 @@ export function computeWordDiff(original: string, updated: string): DiffPart[] {
 
   rawDiff.reverse()
 
-  // Merge consecutive tokens of same type
   const merged: DiffPart[] = []
   for (const part of rawDiff) {
     if (merged.length > 0 && merged[merged.length - 1].type === part.type) {
@@ -83,9 +71,6 @@ export function computeWordDiff(original: string, updated: string): DiffPart[] {
   return merged
 }
 
-/**
- * Returns statistics about the differences.
- */
 export function getDiffStats(parts: DiffPart[]): { additions: number; deletions: number } {
   let additions = 0
   let deletions = 0
