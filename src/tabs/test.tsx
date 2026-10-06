@@ -94,6 +94,9 @@ export default function TestPage() {
   const isDraggingRef = useRef(false);
 
   const popoverRef = useRef<HTMLDivElement>(null);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+  const selectionTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [messageApi, contextHolder] = message.useMessage();
   const requestIdRef = useRef(0);
 
@@ -110,6 +113,9 @@ export default function TestPage() {
       | HTMLInputElement
       | HTMLTextAreaElement
       | null;
+    if (activeEl?.tagName === "INPUT" && !isEditableTextInput(activeEl)) {
+      return null;
+    }
     if (activeEl && isEditableTextInput(activeEl)) {
       const selStart = activeEl.selectionStart;
       const selEnd = activeEl.selectionEnd;
@@ -184,11 +190,13 @@ export default function TestPage() {
       if (popoverRef.current && e.composedPath().includes(popoverRef.current))
         return;
 
-      setTimeout(() => {
+      clearTimeout(selectionTimerRef.current);
+      selectionTimerRef.current = setTimeout(() => {
+        if (isOpenRef.current) return;
         const sel = detectTestSelection(false);
         if (sel) {
           setFloatingSelection(sel);
-        } else if (!isOpen) {
+        } else {
           setFloatingSelection(null);
           setDragPos(null);
         }
@@ -197,8 +205,12 @@ export default function TestPage() {
 
     const handleMouseDown = (e: MouseEvent) => {
       if (isDraggingRef.current) return;
-      if (popoverRef.current && e.composedPath().includes(popoverRef.current))
+      if (popoverRef.current && e.composedPath().includes(popoverRef.current)) {
+        // A pending selection check would run after focus moved to the
+        // trigger and hide it before the click lands.
+        clearTimeout(selectionTimerRef.current);
         return;
+      }
       if (!isOpen) {
         setFloatingSelection(null);
         setDragPos(null);
@@ -209,6 +221,7 @@ export default function TestPage() {
     document.addEventListener("mousedown", handleMouseDown);
 
     return () => {
+      clearTimeout(selectionTimerRef.current);
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("mousedown", handleMouseDown);
     };

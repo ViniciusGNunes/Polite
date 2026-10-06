@@ -21,7 +21,7 @@ export const FALLBACK_MODEL_CHAIN = [
 export const RECOMMENDED_MODELS: RecommendedModel[] = [
   { value: "openai/gpt-oss-20b", title: "GPT-OSS 20B (OpenAI)" },
   { value: "openai/gpt-oss-120b", title: "GPT-OSS 120B (OpenAI)" },
-  { value: "qwen/qwen3.6-27b", title: "Qwen 3.6 27B" }
+  { value: "qwen/qwen3.8-27b", title: "Qwen 3.8 27B" }
 ]
 
 export function supportsReasoningFormat(model: string): boolean {

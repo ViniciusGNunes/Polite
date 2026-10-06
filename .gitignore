@@ -51,3 +51,8 @@ ehthumbs.db
 CODE_ARCHITECTURE.md
 TEST_SUITE.md
 .gitignore
+
+# Test output
+test-results/
+playwright-report/
+test-runs/

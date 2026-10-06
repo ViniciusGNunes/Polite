@@ -610,7 +610,7 @@ export default function OptionsPage() {
                 type="secondary"
                 style={{ fontSize: 13, marginBottom: 14, color: "#8c8c8c" }}
               >
-                Defina domínios onde a extensão não deve funcionarqua.
+                Defina domínios onde a extensão não deve funcionar.
               </Paragraph>
 
               <Row gutter={8} style={{ marginBottom: domainError ? 6 : 14 }}>

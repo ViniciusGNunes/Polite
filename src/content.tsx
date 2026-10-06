@@ -104,6 +104,11 @@ function detectActiveSelection(
     | HTMLInputElement
     | HTMLTextAreaElement
     | null;
+  // Browsers expose text selected inside any <input> via window.getSelection(),
+  // so non-text fields (password, email, number...) must stop here.
+  if (activeEl?.tagName === "INPUT" && !isEditableTextInput(activeEl)) {
+    return null;
+  }
   if (activeEl && isEditableTextInput(activeEl)) {
     const selStart = activeEl.selectionStart;
     const selEnd = activeEl.selectionEnd;

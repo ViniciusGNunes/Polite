@@ -5,7 +5,12 @@
   "scripts": {
     "dev": "node scripts/run-and-mirror.js dev",
     "build": "node scripts/run-and-mirror.js build",
-    "package": "node scripts/package.js"
+    "package": "node scripts/package.js",
+    "build:firefox": "plasmo build --target=firefox-mv3",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "test:firefox": "npm run build:firefox && web-ext lint --source-dir build/firefox-mv3-prod",
+    "test:all": "npm test && npm run test:e2e && npm run test:firefox"
   },
   "displayName": "Polite",
   "manifest": {
@@ -23,6 +28,12 @@
         },
         "description": "Corrigir texto selecionado com IA"
       }
+    },
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "polite@viniciusgnunes.github.io",
+        "strict_min_version": "115.0"
+      }
     }
   },
   "keywords": [],
@@ -38,13 +49,19 @@
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/chrome": "^0.3.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.6.1",
+    "dotenv": "^18.0.5",
+    "jsdom": "^30.1.1",
     "postcss": "^8.5.28",
     "sass": "^1.105.0",
+    "selenium-webdriver": "^4.50.0",
     "tailwindcss": "^3.4.19",
-    "typescript": "~5.7.2"
+    "typescript": "~5.7.2",
+    "vitest": "^5.0.3",
+    "web-ext": "^10.7.0"
   }
 }

@@ -122,6 +122,23 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     await navigator.clipboard.writeText(text)
     return true
   } catch {
+    // navigator.clipboard only exists on secure origins; plain http:// pages
+    // need the legacy copy command (still allowed during a user click).
+    return copyWithExecCommand(text)
+  }
+}
+
+function copyWithExecCommand(text: string): boolean {
+  const onCopy = (e: ClipboardEvent) => {
+    e.clipboardData?.setData("text/plain", text)
+    e.preventDefault()
+  }
+  document.addEventListener("copy", onCopy, true)
+  try {
+    return document.execCommand("copy")
+  } catch {
     return false
+  } finally {
+    document.removeEventListener("copy", onCopy, true)
   }
 }
