@@ -1,65 +1,35 @@
 # Polite
 
-O Polite é uma extensão de navegador para corrigir e traduzir textos. Ele usa a IA da Groq, então as correções são super rápidas.
+A browser extension that corrects grammar and translates any text you select, powered by AI models on [Groq](https://groq.com/).
 
-A ideia é simples: você seleciona qualquer texto que acabou de escrever (seja num input, textarea ou editor de texto), clica no botão que aparece (ou pressiona Alt+C), e a IA corrige a gramática ou traduz o texto para o idioma que você escolher.
+Select text, press <kbd>Alt</kbd>+<kbd>C</kbd>, review the result, and replace the original in one click. Works on Chrome, Edge, Brave, Opera, and Firefox. The interface is in Brazilian Portuguese.
 
-## Instalação
+## What it does
 
-Tem duas formas de instalar o Polite: baixando o pacote já pronto, ou buildando a partir do código-fonte.
+- **Correct:** fixes grammar, agreement, spelling, and punctuation while keeping the author's language and voice.
+- **Translate:** English, Spanish, Portuguese, French, German, Italian, Japanese, Chinese, or Russian.
+- **Review before replacing:** a word-level diff shows exactly what changed. Replace the text in place or copy the result.
+- **Works anywhere you type:** inputs, textareas, and regular page text.
+- **Model choice:** pick a recommended model or any chat model on your Groq account.
+- **History:** the last 30 results, stored locally in the browser.
 
-### Opção 1: Baixar o pacote pronto (Releases do GitHub)
+## Engineering highlights
 
-1. Acesse a página de [Releases](https://github.com/ViniciusGNunes/Polite/releases) do repositório
-2. Baixe o pacote correspondente ao seu navegador:
-   - **Chrome / Edge / Brave / Opera:** pacote de produção padrão (`polite-prod`)
-   - **Firefox:** pacote de produção do Firefox (`firefox-mv3-prod`)
-3. Extraia o `.zip` baixado em uma pasta
-4. Carregue a extensão no navegador:
-   - **Chrome/Edge/Brave/Opera:**
-     - Acesse `chrome://extensions/` (ou `edge://extensions/`, etc.)
-     - Ative o **Modo do desenvolvedor**
-     - Clique em **Carregar sem compactação** e selecione a pasta extraída
-   - **Firefox:**
-     - Acesse `about:debugging`
-     - Clique em **This Firefox**
-     - Clique em **Load Temporary Add-on** e selecione o arquivo `manifest.json` dentro da pasta extraída
+- **Manifest V3, cross-browser:** one codebase builds for Chromium browsers and Firefox.
+- **Resilient model handling:** if a model is retired or not available to the account, the extension discovers active models through the Groq API and falls back automatically.
+- **Prompt-injection hardening:** selected text is passed as delimited data, never as instructions.
+- **Output cleanup:** strips reasoning blocks, headings such as "Correção:", and stray quotes or code fences, so only the final text reaches the page.
+- **Reasoning-model support:** hides reasoning output and scales the token budget to the input size.
+- **Layered tests:** Vitest unit tests, Playwright end-to-end tests on Chromium, and a Selenium suite on Firefox.
 
-### Opção 2: Buildar a partir do código-fonte
+## Stack
 
-1. Instale as dependências:
+| | |
+| --- | --- |
+| Extension | Plasmo, React 19, TypeScript, Ant Design, Sass |
+| AI | Groq chat completions API |
+| Testing | Vitest, Playwright, Selenium, web-ext |
 
-   ```bash
-   npm install
-   ```
+## Try it
 
-2. Gere o build para o seu navegador:
-
-   - **Chrome/Edge/Brave/Opera** (modo desenvolvimento):
-
-     ```bash
-     npm run dev
-     ```
-
-     Isso cria a pasta `build/polite-dev`.
-
-   - **Firefox** (build de produção):
-
-     ```bash
-     npm run build:firefox
-     ```
-
-     Isso cria a pasta `build/firefox-mv3-prod`.
-
-3. Carregue a extensão no navegador:
-   - **Chrome/Edge/Brave/Opera:**
-     - Acesse `chrome://extensions/`
-     - Ative o **Modo do desenvolvedor** lá no topo
-     - Clique em **Carregar sem compactação**
-     - Selecione a pasta `build/polite-dev` que acabou de ser criada
-   - **Firefox:**
-     - Acesse `about:debugging`
-     - Clique em **This Firefox**
-     - Clique em **Load Temporary Add-on** e selecione `build/firefox-mv3-prod/manifest.json`
-
-**Importante:** Você vai precisar de uma chave de API gratuita da [Groq](https://console.groq.com/keys). É só colocar ela no popup ou nas configurações da extensão pra ela começar a funcionar.
+Download the latest build from [Releases](https://github.com/ViniciusGNunes/Polite/releases/latest), load it as an unpacked extension, and add a free [Groq API key](https://console.groq.com/keys). Selected text is sent to Groq only when you run a correction or translation.
